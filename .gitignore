@@ -1,0 +1,22 @@
+# Ignorar archivos compilados de Python
+*.pyc
+*~$
+__pycache__/
+
+# Ignorar la carpeta del entorno virtual (Muy Importante)
+venv/
+.venv/
+env/
+
+# Archivos de caché
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints
+
+# Archivos de datos o credenciales sensibles
+# Si trabajas con credenciales (claves de API, tokens), deben ir aquí:
+.env
+*.json
+*.csv
+database.db
