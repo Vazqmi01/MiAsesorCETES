@@ -34,12 +34,21 @@ python3 -m venv venv
 source venv/bin/activate  
 ```
 
-### 3. Instalar las dependencias
+### 3. Instalar las dependencias de Python
 
 ```bash
 pip install -r requirements.txt
 ```
-El archivo `packages.txt` contiene dependencias del sistema necesarias para el funcionamiento de la aplicación. Instala FFmpeg.
+
+### 4. Instalar dependencias del sistema
+
+El archivo `packages.txt` contiene dependencias del sistema necesarias para el funcionamiento de la aplicación. Instala FFmpeg:
+
+**En Ubuntu/Debian:**
+```bash
+sudo apt-get update
+sudo apt-get install ffmpeg
+```
 
 ## ⚙️ Configuración
 
@@ -47,11 +56,13 @@ El archivo `packages.txt` contiene dependencias del sistema necesarias para el f
 
 Crea un archivo `.env` en la raíz del proyecto con las siguientes variables:
 
+```env
 # API de OpenAI (requerido para el asesor experto)
 OPENAI_API_KEY=tu_clave_api_openai
 
 # API de Banxico (requerido)
 BANXICO_API_KEY=tu_clave_api_banxico
+```
 
 ## 🏃 Ejecución
 
@@ -70,8 +81,14 @@ El script automáticamente:
 ### Opción 2: Ejecución manual
 
 1. Activa el entorno virtual:
-source venv/bin/activate  # En Windows: venv\Scripts\activate2. Ejecuta Streamlit:
-streamlit run main.pyLa aplicación se abrirá automáticamente en tu navegador en `http://localhost:8501`
+   ```bash
+   source venv/bin/activate  
+   ```
+
+2. Ejecuta Streamlit:
+   ```bash
+   streamlit run main.py
+   ```
 
 ## 📖 Uso de la Aplicación
 
@@ -111,9 +128,12 @@ streamlit run main.pyLa aplicación se abrirá automáticamente en tu navegador 
 MiAsesorCETES/
 ├── main.py                          # Archivo principal de la aplicación
 ├── prompts.py                       # Prompts del sistema para el asesor experto
-├── requirements.txt                 # Dependencias del proyecto
+├── requirements.txt                 # Dependencias de Python del proyecto
+├── packages.txt                     # Dependencias del sistema (FFmpeg)
 ├── run.sh                           # Script para ejecutar la aplicación
 ├── .env                             # Variables de entorno (crear manualmente)
+├── .gitignore                       # Archivos ignorados por Git
+├── LICENSE                          # Licencia del proyecto
 ├── README.md                        # Este archivo
 ├── pages/                           # Páginas de la aplicación Streamlit
 │   ├── 1_📊_Asesor_Experto.py      # Página del asesor experto con IA
@@ -123,7 +143,7 @@ MiAsesorCETES/
 │   └── common.py                    # Funciones comunes (obtención de datos, pronósticos, etc.)
 └── images/                          # Imágenes de la aplicación
     ├── Logo.png
-    └── README.md
+
 ```
 
 ## 🔧 Dependencias Principales
@@ -136,6 +156,8 @@ MiAsesorCETES/
 - **requests**: Solicitudes HTTP a la API de Banxico
 - **python-dotenv**: Carga de variables de entorno
 - **streamlit-audiorecorder**: Grabación de audio en Streamlit
+- **pydub**: Manipulación de audio
+- **pyaudioop**: Operaciones de audio para la grabación
 
 ## 🎯 Características Técnicas
 
@@ -146,13 +168,21 @@ MiAsesorCETES/
 - **Síntesis de Voz**: OpenAI TTS
 - **Visualización**: Plotly para gráficas interactivas
 
-## ⚠️ Notas Importantes
 
-- **Propósito Educativo**: Esta aplicación tiene fines educativos e informativos.
-- **Datos Históricos**: Los datos se obtienen directamente de la API de Banxico. Se requiere una clave válida de API para funcionar.
-- **Pronósticos**: Los pronósticos generados son estimaciones estadísticas y no garantizan resultados futuros.
-- **Costo de API**: El uso de OpenAI puede generar costos según tu plan. Consulta los precios en su sitio web.
+## 🐛 Solución de Problemas
 
+### Error al obtener datos de Banxico
+- Verifica que tu `BANXICO_API_KEY` esté correctamente configurada en el archivo `.env`
+- Asegúrate de tener conexión a internet
+- Verifica que tu clave de API sea válida en [banxico.org.mx](https://www.banxico.org.mx/)
+
+### Error con la grabación de audio
+- Verifica que FFmpeg esté instalado correctamente: `ffmpeg -version`
+- En sistemas Linux, puede requerir permisos adicionales para acceder al micrófono
+
+### Error al generar pronósticos
+- Asegúrate de tener suficientes datos históricos (la API de Banxico debe devolver datos válidos)
+- Verifica que todas las dependencias estén instaladas: `pip install -r requirements.txt`
 
 ## 📝 Licencia
 
