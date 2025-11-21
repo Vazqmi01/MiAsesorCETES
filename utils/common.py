@@ -347,7 +347,7 @@ def obtener_pronostico_cached(df, variable_objetivo, exog_cols, periodos_pronost
 
 def generar_todos_los_pronosticos(df, periodos_pronostico=4):
     """
-    Genera pronósticos SARIMAX para todos los plazos de CETES y retorna un diccionario estructurado.
+    Genera pronósticos para todos los plazos de CETES y retorna un diccionario estructurado.
     
     Args:
         df (pd.DataFrame): DataFrame con datos históricos de Banxico
@@ -510,11 +510,25 @@ def obtener_resumen_pronosticos_sarimax(df=None, periodos_pronostico=4, pronosti
             limite_inferior = datos['limite_inferior']
             limite_superior = datos['limite_superior']
             
+            # Determinar el número real de semanas disponibles en el pronóstico
+            semanas_reales = periodos_pronostico
+            if 'pronostico_series' in datos:
+                semanas_reales = len(datos['pronostico_series'])
+            
             # Formatear información del plazo
             resumen_lineas.append(f"📈 CETES {plazo_nombre.upper()}:")
             resumen_lineas.append(f"   • Tasa Actual: {tasa_actual:.2f}%")
             resumen_lineas.append(f"   • Pronóstico Próxima Subasta: {tasa_pronostico_inicial:.2f}% (cambio: {cambio_inicial:+.2f}pp)")
-            resumen_lineas.append(f"   • Pronóstico Final ({periodos_pronostico} semanas): {tasa_pronostico_final:.2f}% (cambio: {cambio_final:+.2f}pp)")
+            resumen_lineas.append(f"   • Pronóstico Final ({semanas_reales} semanas): {tasa_pronostico_final:.2f}% (cambio: {cambio_final:+.2f}pp)")
+            
+            # Agregar información de pronósticos intermedios si hay más de 4 semanas
+            if semanas_reales > 4 and 'pronostico_series' in datos:
+                # Mostrar pronóstico a la mitad del período
+                mitad_semanas = semanas_reales // 2
+                if mitad_semanas > 0 and mitad_semanas < len(datos['pronostico_series']):
+                    tasa_mitad = datos['pronostico_series'].iloc[mitad_semanas - 1]
+                    cambio_mitad = tasa_mitad - tasa_actual
+                    resumen_lineas.append(f"   • Pronóstico Intermedio ({mitad_semanas} semanas): {tasa_mitad:.2f}% (cambio: {cambio_mitad:+.2f}pp)")
             
             if tiene_intervalo:
                 resumen_lineas.append(f"   • Intervalo de Confianza 95%: [{limite_inferior:.2f}%, {limite_superior:.2f}%]")

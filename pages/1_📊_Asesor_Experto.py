@@ -10,7 +10,8 @@ from audiorecorder import audiorecorder
 from utils.common import (
     client_openai, client_deepseek, model_deepseek,
     audio_player_with_speed, get_image_path,
-    obtener_resumen_pronosticos_sarimax
+    obtener_resumen_pronosticos_sarimax,
+    obtener_datos_banxico, generar_todos_los_pronosticos
 )
 
 # Configuración de la página
@@ -25,6 +26,20 @@ st.header("💡 Asesor Experto en CETES")
 st.markdown("Chatea con un experto en CETES, Banxico e inflación.")
 st.divider()
 
+# Verificar y generar pronósticos si no existen (por si se accede directamente a esta página)
+if "pronosticos_generados" not in st.session_state:
+    with st.spinner("⏳ Generando pronósticos..."):
+        df_banxico = obtener_datos_banxico()
+        if df_banxico is not None and not df_banxico.empty:
+            pronosticos = generar_todos_los_pronosticos(df_banxico, periodos_pronostico=13)
+            st.session_state.pronosticos_generados = pronosticos
+            st.session_state.df_banxico = df_banxico
+            st.session_state.pronosticos_listos = True
+        else:
+            st.session_state.pronosticos_generados = None
+            st.session_state.df_banxico = None
+            st.session_state.pronosticos_listos = False
+
 # Cargar el prompt base del sistema
 SYSTEM_PROMPT_BASE = cetes_prompt
 
@@ -35,11 +50,24 @@ def generar_system_prompt_con_pronosticos():
     pronosticos_dict = st.session_state.get('pronosticos_generados', None)
     
     if pronosticos_dict:
-        # Generar resumen desde los pronósticos pre-generados
+         # Determinar el número máximo de semanas disponibles en los pronósticos
+        max_semanas = 0
+        for columna, datos in pronosticos_dict.items():
+            if 'pronostico_series' in datos:
+                semanas_disponibles = len(datos['pronostico_series'])
+                max_semanas = max(max_semanas, semanas_disponibles)
+        
+        # Usar el máximo disponible o 13 como default
+        periodos_a_mostrar = max_semanas if max_semanas > 0 else 13
+        
         resumen_pronosticos = obtener_resumen_pronosticos_sarimax(
             pronosticos_dict=pronosticos_dict,
-            periodos_pronostico=4
+            periodos_pronostico=periodos_a_mostrar
         )
+        
+        # Agregar nota sobre disponibilidad de pronósticos extendidos
+        if max_semanas > 4:
+            resumen_pronosticos += f"\n\n💡 NOTA: Los pronósticos están disponibles hasta {max_semanas} semanas. Puedes preguntar sobre cualquier semana dentro de este rango."
     else:
         resumen_pronosticos = None
     
@@ -52,6 +80,8 @@ def generar_system_prompt_con_pronosticos():
         prompt_completo += "=" * 60 + "\n"
         prompt_completo += "\n"
         prompt_completo += "Tienes acceso a pronósticos generados por el modelo SARIMAX para todos los plazos de CETES.\n"
+        prompt_completo += "Los pronósticos están disponibles hasta 13 semanas en el futuro. Puedes responder preguntas sobre\n"
+        prompt_completo += "cualquier semana dentro de este rango (semana 1, semana 2, hasta semana 13).\n"
         prompt_completo += "Usa estos datos para responder preguntas sobre tendencias futuras, recomendaciones de inversión\n"
         prompt_completo += "y análisis de pronósticos. SIEMPRE menciona que estos son pronósticos basados en modelos estadísticos\n"
         prompt_completo += "y que no garantizan resultados futuros.\n"
@@ -68,7 +98,7 @@ def generar_system_prompt_con_pronosticos():
 
 # --- Lógica del Chatbot ---
 
-# Sidebar con botón de limpiar (debe estar antes de mostrar mensajes)
+# Sidebar con botón de limpiar 
 with st.sidebar:
     st.subheader("⚙️ Configuración")
     
@@ -93,16 +123,6 @@ with st.sidebar:
     else:
         st.warning("⚠️ Pronósticos no disponibles")
         st.caption("Los pronósticos no están disponibles. El asesor responderá con información general.")
-    
-    if st.button("🔄 Actualizar Pronósticos"):
-        # Limpiar pronósticos y regenerar
-        if 'pronosticos_generados' in st.session_state:
-            del st.session_state.pronosticos_generados
-        if 'df_banxico' in st.session_state:
-            del st.session_state.df_banxico
-        if 'pronosticos_listos' in st.session_state:
-            del st.session_state.pronosticos_listos
-        st.rerun()
 
 # Inicializar el historial si no existe
 if "cetes_messages" not in st.session_state:
@@ -165,7 +185,6 @@ if user_input:
     with st.chat_message("user"):
         st.markdown(user_input)
 
-    # --- Lógica de API (Directa a DeepSeek para el chat) ---
     try:
         # 1. Generar prompt del sistema con pronósticos actualizados
         system_prompt = generar_system_prompt_con_pronosticos()
