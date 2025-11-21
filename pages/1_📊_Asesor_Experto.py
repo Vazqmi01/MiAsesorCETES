@@ -9,7 +9,8 @@ from prompts import cetes_prompt
 from audiorecorder import audiorecorder
 from utils.common import (
     client_openai, client_deepseek, model_deepseek,
-    audio_player_with_speed, get_image_path
+    audio_player_with_speed, get_image_path,
+    obtener_resumen_pronosticos_sarimax
 )
 
 # Configuración de la página
@@ -24,13 +25,53 @@ st.header("💡 Asesor Experto en CETES")
 st.markdown("Chatea con un experto en CETES, Banxico e inflación.")
 st.divider()
 
-# Cargar el prompt del sistema
-SYSTEM_PROMPT = cetes_prompt
+# Cargar el prompt base del sistema
+SYSTEM_PROMPT_BASE = cetes_prompt
+
+# Generar prompt del sistema con pronósticos
+def generar_system_prompt_con_pronosticos():
+    """Genera el prompt del sistema incluyendo los pronósticos SARIMAX desde session_state"""
+    # Usar pronósticos generados al inicio de la aplicación
+    pronosticos_dict = st.session_state.get('pronosticos_generados', None)
+    
+    if pronosticos_dict:
+        # Generar resumen desde los pronósticos pre-generados
+        resumen_pronosticos = obtener_resumen_pronosticos_sarimax(
+            pronosticos_dict=pronosticos_dict,
+            periodos_pronostico=4
+        )
+    else:
+        resumen_pronosticos = None
+    
+    prompt_completo = SYSTEM_PROMPT_BASE
+    
+    if resumen_pronosticos:
+        prompt_completo += "\n\n"
+        prompt_completo += "=" * 60 + "\n"
+        prompt_completo += "📊 DATOS DE PRONÓSTICOS SARIMAX DISPONIBLES\n"
+        prompt_completo += "=" * 60 + "\n"
+        prompt_completo += "\n"
+        prompt_completo += "Tienes acceso a pronósticos generados por el modelo SARIMAX para todos los plazos de CETES.\n"
+        prompt_completo += "Usa estos datos para responder preguntas sobre tendencias futuras, recomendaciones de inversión\n"
+        prompt_completo += "y análisis de pronósticos. SIEMPRE menciona que estos son pronósticos basados en modelos estadísticos\n"
+        prompt_completo += "y que no garantizan resultados futuros.\n"
+        prompt_completo += "\n"
+        prompt_completo += resumen_pronosticos
+        prompt_completo += "\n"
+        prompt_completo += "=" * 60 + "\n"
+    else:
+        prompt_completo += "\n\n"
+        prompt_completo += "⚠️ NOTA: Los pronósticos SARIMAX no están disponibles en este momento.\n"
+        prompt_completo += "Puedes responder preguntas generales sobre CETES, pero no tienes acceso a pronósticos específicos.\n"
+    
+    return prompt_completo
 
 # --- Lógica del Chatbot ---
 
 # Sidebar con botón de limpiar (debe estar antes de mostrar mensajes)
 with st.sidebar:
+    st.subheader("⚙️ Configuración")
+    
     if st.button("🗑️ Limpiar Chat"):
         # Limpiar todos los mensajes
         st.session_state.cetes_messages = []
@@ -39,6 +80,28 @@ with st.sidebar:
             "role": "assistant",
             "content": "💡 Este asistente tiene fines **educativos e informativos**. Úsalo para comprender tu perfil de riesgo y para aprender a analizar instrumentos de deuda."
         })
+        st.rerun()
+    
+    st.divider()
+    st.subheader("📊 Pronósticos")
+    
+    # Verificar estado de los pronósticos desde session_state
+    pronosticos_dict = st.session_state.get('pronosticos_generados', None)
+    if pronosticos_dict:
+        st.success("✅ Pronósticos disponibles")
+        st.caption("El asesor tiene acceso a pronósticos actualizados de todos los plazos de CETES.")
+    else:
+        st.warning("⚠️ Pronósticos no disponibles")
+        st.caption("Los pronósticos no están disponibles. El asesor responderá con información general.")
+    
+    if st.button("🔄 Actualizar Pronósticos"):
+        # Limpiar pronósticos y regenerar
+        if 'pronosticos_generados' in st.session_state:
+            del st.session_state.pronosticos_generados
+        if 'df_banxico' in st.session_state:
+            del st.session_state.df_banxico
+        if 'pronosticos_listos' in st.session_state:
+            del st.session_state.pronosticos_listos
         st.rerun()
 
 # Inicializar el historial si no existe
@@ -104,22 +167,25 @@ if user_input:
 
     # --- Lógica de API (Directa a DeepSeek para el chat) ---
     try:
-        # 1. Preparar el historial para la API
-        messages_for_api = [{"role": "system", "content": SYSTEM_PROMPT}]
+        # 1. Generar prompt del sistema con pronósticos actualizados
+        system_prompt = generar_system_prompt_con_pronosticos()
+        
+        # 2. Preparar el historial para la API
+        messages_for_api = [{"role": "system", "content": system_prompt}]
         for msg in st.session_state.cetes_messages:
             messages_for_api.append({"role": msg["role"], "content": msg["content"]})
 
-        # 2. Llamar a la API de DeepSeek
-        if client_deepseek:
+        # 2. Llamar a la API de OpenAI
+        if client_openai:
             with st.spinner("Pensando..."):
-                response = client_deepseek.chat.completions.create(
-                    model=model_deepseek,
+                response = client_openai.chat.completions.create(
+                    model="gpt-5.1",
                     messages=messages_for_api
                 )
                 assistant_response = response.choices[0].message.content
         else:
-            st.error("❌ API Key de DeepSeek no configurada")
-            assistant_response = "Lo siento, no tengo acceso a la API de DeepSeek en este momento."
+            st.error("❌ API Key de OpenAI no configurada")
+            assistant_response = "Lo siento, no tengo acceso a la API de OpenAI en este momento."
         
         # 3. Mostrar y guardar la respuesta del modelo
         with st.chat_message("assistant"):

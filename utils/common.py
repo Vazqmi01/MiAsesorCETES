@@ -71,7 +71,7 @@ def descarga_bmx_series(series_dict, fechainicio, fechafin):
     token = BANXICO_API_KEY
     
     if not token:
-        print("Error: La variable de entorno 'BANXICO_API' o 'BANXICO_API_KEY' no está configurada.")
+        print("Error: La variable de entorno 'BANXICO_API_KEY' no está configurada.")
         return None
         
     headers = {'Bmx-Token': token}
@@ -307,3 +307,254 @@ def pronostico_sarimax(df, variable_objetivo, exog_cols, periodos_pronostico=30,
         
     except Exception as e:
         raise Exception(f"Error al generar pronóstico SARIMAX: {str(e)}")
+
+def obtener_pronostico_cached(df, variable_objetivo, exog_cols, periodos_pronostico=4):
+    """
+    Genera un pronóstico SARIMAX con cache para evitar recalcular el modelo.
+    Esta función está diseñada para ser usada con @st.cache_data en Streamlit.
+    
+    Args:
+        df (pd.DataFrame): DataFrame con datos históricos de Banxico
+        variable_objetivo (str): Nombre de la columna a predecir (ej: 'CETE_91D')
+        exog_cols (list): Lista de columnas exógenas
+        periodos_pronostico (int): Número de períodos a pronosticar
+    
+    Returns:
+        tuple: (pronostico_series, fechas_pronostico, modelo_ajustado) o None si hay error
+    """
+    try:
+        if df is None or df.empty:
+            return None
+        
+        if variable_objetivo not in df.columns:
+            return None
+        
+        datos_historicos = df[variable_objetivo].dropna()
+        if len(datos_historicos) < 52:
+            return None
+        
+        # Generar pronóstico
+        pronostico_series, fechas_pronostico, modelo_ajustado = pronostico_sarimax(
+            df=df,
+            variable_objetivo=variable_objetivo,
+            exog_cols=exog_cols,
+            periodos_pronostico=periodos_pronostico
+        )
+        
+        return pronostico_series, fechas_pronostico, modelo_ajustado
+    except Exception as e:
+        return None
+
+def generar_todos_los_pronosticos(df, periodos_pronostico=4):
+    """
+    Genera pronósticos SARIMAX para todos los plazos de CETES y retorna un diccionario estructurado.
+    
+    Args:
+        df (pd.DataFrame): DataFrame con datos históricos de Banxico
+        periodos_pronostico (int): Número de semanas a pronosticar. Default: 4
+    
+    Returns:
+        dict: Diccionario con pronósticos para cada plazo, o None si hay error
+        Estructura: {
+            'CETE_28D': {
+                'pronostico_series': pd.Series,
+                'fechas_pronostico': pd.DatetimeIndex,
+                'modelo_ajustado': modelo,
+                'tasa_actual': float,
+                'tasa_pronostico_inicial': float,
+                'tasa_pronostico_final': float,
+                'cambio_inicial': float,
+                'cambio_final': float,
+                'limite_inferior': float,
+                'limite_superior': float,
+                'tiene_intervalo': bool
+            },
+            ...
+        }
+    """
+    if df is None or df.empty:
+        return None
+    
+    try:
+        # Definir plazos y sus columnas
+        plazos_info = {
+            "28 días": "CETE_28D",
+            "91 días": "CETE_91D",
+            "182 días": "CETE_182D",
+            "364 días": "CETE_364D"
+        }
+        
+        # Variables exógenas
+        exog_cols = [c for c in df.columns if 'CETE' not in c]
+        
+        pronosticos_dict = {}
+        
+        for plazo_nombre, columna in plazos_info.items():
+            if columna not in df.columns:
+                continue
+            
+            try:
+                # Obtener datos históricos del plazo
+                datos_historicos = df[columna].dropna()
+                if len(datos_historicos) < 52:
+                    continue
+                
+                # Generar pronóstico
+                pronostico_series, fechas_pronostico, modelo_ajustado = pronostico_sarimax(
+                    df=df,
+                    variable_objetivo=columna,
+                    exog_cols=exog_cols,
+                    periodos_pronostico=periodos_pronostico
+                )
+                
+                # Calcular métricas
+                tasa_actual = datos_historicos.iloc[-1]
+                tasa_pronostico_inicial = pronostico_series.iloc[0]
+                tasa_pronostico_final = pronostico_series.iloc[-1]
+                cambio_inicial = tasa_pronostico_inicial - tasa_actual
+                cambio_final = tasa_pronostico_final - tasa_actual
+                
+                # Obtener intervalo de confianza si es posible
+                try:
+                    if exog_cols:
+                        exog_forecast_df = pd.DataFrame(
+                            index=fechas_pronostico,
+                            columns=exog_cols
+                        )
+                        for col in exog_cols:
+                            if col in df.columns:
+                                exog_forecast_df[col] = df[col].ffill().iloc[-1]
+                        forecast_obj = modelo_ajustado.get_forecast(
+                            steps=periodos_pronostico,
+                            exog=exog_forecast_df
+                        )
+                    else:
+                        forecast_obj = modelo_ajustado.get_forecast(steps=periodos_pronostico)
+                    
+                    pronostico_ci = forecast_obj.conf_int()
+                    limite_inferior = pronostico_ci.iloc[0, 0]
+                    limite_superior = pronostico_ci.iloc[0, 1]
+                    tiene_intervalo = True
+                except:
+                    tiene_intervalo = False
+                    limite_inferior = None
+                    limite_superior = None
+                
+                # Guardar en diccionario
+                pronosticos_dict[columna] = {
+                    'plazo_nombre': plazo_nombre,
+                    'pronostico_series': pronostico_series,
+                    'fechas_pronostico': fechas_pronostico,
+                    'modelo_ajustado': modelo_ajustado,
+                    'tasa_actual': tasa_actual,
+                    'tasa_pronostico_inicial': tasa_pronostico_inicial,
+                    'tasa_pronostico_final': tasa_pronostico_final,
+                    'cambio_inicial': cambio_inicial,
+                    'cambio_final': cambio_final,
+                    'limite_inferior': limite_inferior,
+                    'limite_superior': limite_superior,
+                    'tiene_intervalo': tiene_intervalo,
+                    'datos_historicos': datos_historicos
+                }
+                
+            except Exception as e:
+                # Si falla un plazo, continuar con los demás
+                continue
+        
+        return pronosticos_dict if pronosticos_dict else None
+        
+    except Exception as e:
+        return None
+
+def obtener_resumen_pronosticos_sarimax(df=None, periodos_pronostico=4, pronosticos_dict=None):
+    """
+    Genera un resumen formateado de los pronósticos SARIMAX.
+    Puede usar un diccionario de pronósticos pre-generados o generar nuevos desde un DataFrame.
+    
+    Args:
+        df (pd.DataFrame, optional): DataFrame con datos históricos de Banxico
+        periodos_pronostico (int): Número de semanas a pronosticar. Default: 4
+        pronosticos_dict (dict, optional): Diccionario de pronósticos pre-generados
+    
+    Returns:
+        str: Resumen formateado de los pronósticos para todos los plazos, o None si hay error
+    """
+    # Si se proporciona un diccionario de pronósticos, usarlo directamente
+    if pronosticos_dict is not None:
+        pronosticos_data = pronosticos_dict
+    elif df is not None and not df.empty:
+        # Generar pronósticos si no se proporcionan
+        pronosticos_data = generar_todos_los_pronosticos(df, periodos_pronostico)
+        if pronosticos_data is None:
+            return None
+    else:
+        return None
+    
+    try:
+        resumen_lineas = []
+        resumen_lineas.append("=" * 60)
+        resumen_lineas.append("📊 PRONÓSTICOS SARIMAX - DATOS ACTUALIZADOS")
+        resumen_lineas.append("=" * 60)
+        resumen_lineas.append("")
+        
+        pronosticos_para_comparacion = {}
+        
+        for columna, datos in pronosticos_data.items():
+            plazo_nombre = datos['plazo_nombre']
+            tasa_actual = datos['tasa_actual']
+            tasa_pronostico_inicial = datos['tasa_pronostico_inicial']
+            tasa_pronostico_final = datos['tasa_pronostico_final']
+            cambio_inicial = datos['cambio_inicial']
+            cambio_final = datos['cambio_final']
+            tiene_intervalo = datos['tiene_intervalo']
+            limite_inferior = datos['limite_inferior']
+            limite_superior = datos['limite_superior']
+            
+            # Formatear información del plazo
+            resumen_lineas.append(f"📈 CETES {plazo_nombre.upper()}:")
+            resumen_lineas.append(f"   • Tasa Actual: {tasa_actual:.2f}%")
+            resumen_lineas.append(f"   • Pronóstico Próxima Subasta: {tasa_pronostico_inicial:.2f}% (cambio: {cambio_inicial:+.2f}pp)")
+            resumen_lineas.append(f"   • Pronóstico Final ({periodos_pronostico} semanas): {tasa_pronostico_final:.2f}% (cambio: {cambio_final:+.2f}pp)")
+            
+            if tiene_intervalo:
+                resumen_lineas.append(f"   • Intervalo de Confianza 95%: [{limite_inferior:.2f}%, {limite_superior:.2f}%]")
+            
+            # Recomendación básica
+            if cambio_inicial > 0.2:
+                recomendacion = "ESPERAR (se predice alza)"
+            elif cambio_inicial < -0.2:
+                recomendacion = "INVERTIR AHORA (se predice baja)"
+            else:
+                recomendacion = "INVERTIR (estable)"
+            
+            resumen_lineas.append(f"   • Recomendación: {recomendacion}")
+            resumen_lineas.append("")
+            
+            # Guardar para comparación
+            pronosticos_para_comparacion[plazo_nombre] = {
+                'cambio_inicial': cambio_inicial
+            }
+        
+        # Agregar resumen comparativo
+        if pronosticos_para_comparacion:
+            resumen_lineas.append("-" * 60)
+            resumen_lineas.append("📊 RESUMEN COMPARATIVO:")
+            resumen_lineas.append("")
+            
+            # Encontrar mejor y peor pronóstico
+            mejor_cambio = max(pronosticos_para_comparacion.items(), key=lambda x: x[1]['cambio_inicial'])
+            peor_cambio = min(pronosticos_para_comparacion.items(), key=lambda x: x[1]['cambio_inicial'])
+            
+            resumen_lineas.append(f"   • Mejor Pronóstico (mayor alza esperada): CETES {mejor_cambio[0]} (+{mejor_cambio[1]['cambio_inicial']:.2f}pp)")
+            resumen_lineas.append(f"   • Peor Pronóstico (mayor baja esperada): CETES {peor_cambio[0]} ({peor_cambio[1]['cambio_inicial']:+.2f}pp)")
+            resumen_lineas.append("")
+            
+            # Fecha de última actualización
+            fecha_actualizacion = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            resumen_lineas.append(f"📅 Última actualización: {fecha_actualizacion}")
+            resumen_lineas.append("=" * 60)
+        
+        return "\n".join(resumen_lineas) if resumen_lineas else None
+        
+    except Exception as e:
+        return f"Error al generar resumen de pronósticos: {str(e)}"
