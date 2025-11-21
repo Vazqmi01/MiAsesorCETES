@@ -1,4 +1,4 @@
-# �� Mi Asesor CETES
+# Mi Asesor CETES
 
 Aplicación web inteligente desarrollada con Streamlit para realizar pronósticos y análisis de los Certificados de la Tesorería de la Federación (CETES). Incluye un asistente experto con inteligencia artificial que te ayuda a entender y analizar las tasas de CETES.
 
@@ -50,12 +50,7 @@ Crea un archivo `.env` en la raíz del proyecto con las siguientes variables:
 OPENAI_API_KEY=tu_clave_api_openai
 
 # API de Banxico (requerido)
-BANXICO_API_KEY=tu_clave_api_banxico**Importante**: La aplicación **requiere** una clave válida de la API de Banxico para funcionar correctamente. Sin esta clave, no podrás acceder a los datos históricos ni generar pronósticos.
-
-### Cómo obtener las claves de API
-
-- **OpenAI**: Regístrate en [OpenAI](https://platform.openai.com/) y genera una API key
-- **Banxico**: Consulta la [documentación de la API de Banxico](https://www.banxico.org.mx/SieAPIRest/service/v1/) para obtener tu clave
+BANXICO_API_KEY=tu_clave_api_banxico
 
 ## 🏃 Ejecución
 
@@ -157,23 +152,11 @@ MiAsesorCETES/
 - **Pronósticos**: Los pronósticos generados son estimaciones estadísticas y no garantizan resultados futuros.
 - **Costo de API**: El uso de OpenAI puede generar costos según tu plan. Consulta los precios en su sitio web.
 
-## 🤝 Contribuciones
-
-Las contribuciones son bienvenidas. Por favor:
-1. Fork el proyecto
-2. Crea una rama para tu característica (`git checkout -b feature/NuevaCaracteristica`)
-3. Commit tus cambios (`git commit -m 'Agrega nueva característica'`)
-4. Push a la rama (`git push origin feature/NuevaCaracteristica`)
-5. Abre un Pull Request
 
 ## 📝 Licencia
 
 Ver el archivo `LICENSE` para más detalles.
 
-## 💡 Soporte
-
-Si encuentras algún problema o tienes preguntas, por favor abre un issue en el repositorio del proyecto.
-
 ---
 
-**Desarrollado con ❤️ para ayudar a entender y analizar los CETES de manera inteligente.**
+**Desarrollado para ayudar a entender y analizar los CETES de manera inteligente.**
