@@ -169,20 +169,9 @@ MiAsesorCETES/
 - **Visualización**: Plotly para gráficas interactivas
 
 
-## 🐛 Solución de Problemas
-
-### Error al obtener datos de Banxico
-- Verifica que tu `BANXICO_API_KEY` esté correctamente configurada en el archivo `.env`
-- Asegúrate de tener conexión a internet
-- Verifica que tu clave de API sea válida en [banxico.org.mx](https://www.banxico.org.mx/)
-
-### Error con la grabación de audio
-- Verifica que FFmpeg esté instalado correctamente: `ffmpeg -version`
-- En sistemas Linux, puede requerir permisos adicionales para acceder al micrófono
-
-### Error al generar pronósticos
-- Asegúrate de tener suficientes datos históricos (la API de Banxico debe devolver datos válidos)
-- Verifica que todas las dependencias estén instaladas: `pip install -r requirements.txt`
+**Notas importantes**:
+   - **FFmpeg**: Streamlit Cloud no tiene FFmpeg instalado por defecto. La funcionalidad de grabación de audio puede tener limitaciones.
+   - **Dependencias**: Todas las dependencias en `requirements.txt` son compatibles con Streamlit Cloud.
 
 ## 📝 Licencia
 

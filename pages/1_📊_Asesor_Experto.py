@@ -156,7 +156,15 @@ if user_input is None and audio is not None and len(audio) > 0:
     try:
         # Convertir audio a formato WAV
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
-            audio.export(tmp_file.name, format="wav")
+            try:
+                audio.export(tmp_file.name, format="wav")
+            except Exception as export_error:
+                # Si la exportación falla (por ejemplo, sin FFmpeg), intentar obtener los bytes directamente
+                try:
+                    audio_bytes = audio.tobytes() if hasattr(audio, 'tobytes') else bytes(audio)
+                    tmp_file.write(audio_bytes)
+                except:
+                    raise export_error
             audio_path = tmp_file.name
         
         # Transcribir audio usando OpenAI Whisper
@@ -173,10 +181,12 @@ if user_input is None and audio is not None and len(audio) > 0:
                 st.error("❌ API Key de OpenAI no configurada para transcripción")
         
         # Limpiar archivo temporal
-        os.unlink(audio_path)
+        if os.path.exists(audio_path):
+            os.unlink(audio_path)
         
     except Exception as e:
         st.error(f"❌ Error al transcribir audio: {e}")
+        st.info("💡 Tip: Asegúrate de tener permisos de micrófono y que el audio esté en formato compatible.")
 
 # Obtener nueva entrada del usuario (texto o voz)
 if user_input:
