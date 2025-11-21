@@ -39,6 +39,7 @@ source venv/bin/activate
 ```bash
 pip install -r requirements.txt
 ```
+El archivo `packages.txt` contiene dependencias del sistema necesarias para el funcionamiento de la aplicación. Instala FFmpeg.
 
 ## ⚙️ Configuración
 
